@@ -12,14 +12,16 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
 
 var (
-	tempJson     = "csv-report-temp.json"
-	templateFile = "@csv.tpl"
+	tempJsonFileName = "csv-report-temp.json"
+	templateFileName = "csv.tpl"
 )
+
 var CustomTemplateFuncMap = map[string]interface{}{
 	"escapeCsv": func(input string) string {
 		quoted := strconv.Quote(input)
@@ -47,13 +49,13 @@ func main() {
 	trivyCommand := os.Args[1 : len(os.Args)-1]
 	scanType := trivyCommand[0]
 	outputFileName := os.Args[len(os.Args)-1]
-	cmdArgs := append(trivyCommand, "--format", "json", "--output", tempJson)
+	cmdArgs := append(trivyCommand, "--format", "json", "--output", tempJsonFileName)
 	cmd := exec.Command("trivy", cmdArgs...)
 	cmdErr := cmd.Run()
 	if cmdErr != nil {
 		log.Fatal(xerrors.Errorf("failed to build report: %w", cmdErr))
 	}
-	jsonReport, getResultsError := getReportFromJson(scanType, tempJson)
+	jsonReport, getResultsError := getReportFromJson(scanType, tempJsonFileName)
 	if getResultsError != nil {
 		log.Fatal(xerrors.Errorf("failed to extract jsonReport from json: %w", getResultsError))
 	}
@@ -61,15 +63,17 @@ func main() {
 	if createFileError != nil {
 		log.Fatal(createFileError)
 	}
+	defer removeTempFile()
 	var writer report.Writer
 	var templateError error
-	if writer, templateError = report.NewTemplateWriter(outputFile, templateFile); templateError != nil {
+	if writer, templateError = report.NewTemplateWriter(outputFile, getPathToTemplate()); templateError != nil {
 		log.Fatal(xerrors.Errorf("failed to initialize template writer: %w", templateError))
 	}
 	if writeError := writer.Write(*jsonReport); writeError != nil {
 		log.Fatal(xerrors.Errorf("failed to write results: %w", writeError))
 	}
 }
+
 func getReportFromJson(scanType string, jsonFileName string) (*types.Report, error) {
 	switch scanType {
 	case "k8s":
@@ -96,6 +100,7 @@ func getReportFromJson(scanType string, jsonFileName string) (*types.Report, err
 		return commonReport, nil
 	}
 }
+
 func createFile(fileName string) (outputFile io.Writer, err error) {
 	outputFile, err = os.Create(fileName)
 	if err != nil {
@@ -125,4 +130,26 @@ func readJson[T any](fileName string) (*T, error) {
 		return *new(*T), err
 	}
 	return &out, nil
+}
+
+func joinBaseDir(filename string) string {
+	ex, err := os.Executable()
+	if err != nil {
+		panic(err)
+	}
+	exPath := filepath.Dir(ex)
+	absolutePath := filepath.Join(exPath, filename)
+	return absolutePath
+}
+
+func getPathToTemplate() string {
+	absolutePath := joinBaseDir(templateFileName)
+	return "@" + absolutePath
+}
+
+func removeTempFile() {
+	absolutePath := joinBaseDir(tempJsonFileName)
+	if _, err := os.Stat(absolutePath); err == nil {
+		_ = os.Remove(absolutePath)
+	}
 }
