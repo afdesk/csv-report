@@ -84,8 +84,8 @@ func NewTemplateWriter(output io.Writer, outputTemplate string) (*TemplateWriter
 }
 
 // Write writes result
-func (tw TemplateWriter) Write(report types.Report) error {
-	err := tw.Template.Execute(tw.Output, report.Results)
+func (tw TemplateWriter) Write(results types.Results) error {
+	err := tw.Template.Execute(tw.Output, results)
 	if err != nil {
 		return xerrors.Errorf("failed to write with template: %w", err)
 	}
@@ -93,5 +93,5 @@ func (tw TemplateWriter) Write(report types.Report) error {
 }
 
 type Writer interface {
-	Write(types.Report) error
+	Write(types.Results) error
 }
