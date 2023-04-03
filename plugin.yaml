@@ -7,5 +7,5 @@ description: |-
   trivy csv-report [-h,--help] command target filename
 platforms:
   -
-    uri: https://github.com/afdesk/csv-report/releases/download/v0.0.1/csv-report.tar.gz
+    uri: https://github.com/afdesk/csv-report/releases/download/v0.0.1/csv-report_0.0.1_Linux-amd64.tar.gz
     bin: ./csv-report
