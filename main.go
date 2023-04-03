@@ -46,36 +46,36 @@ func main() {
 	report.CustomTemplateFuncMap = CustomTemplateFuncMap
 	trivyCommand := os.Args[1 : len(os.Args)-1]
 	scanType := trivyCommand[0]
-	outputFile := os.Args[len(os.Args)-1]
+	outputFileName := os.Args[len(os.Args)-1]
 	cmdArgs := append(trivyCommand, "--format", "json", "--output", tempJson)
 	cmd := exec.Command("trivy", cmdArgs...)
 	cmdErr := cmd.Run()
 	if cmdErr != nil {
 		log.Fatal(xerrors.Errorf("failed to build report: %w", cmdErr))
 	}
-	getResultsError, jsonReport := getReportFromJson(scanType, tempJson)
+	jsonReport, getResultsError := getReportFromJson(scanType, tempJson)
 	if getResultsError != nil {
 		log.Fatal(xerrors.Errorf("failed to extract jsonReport from json: %w", getResultsError))
 	}
-	createFileError, f := createFile(outputFile)
+	outputFile, createFileError := createFile(outputFileName)
 	if createFileError != nil {
-		log.Fatalln(createFileError)
+		log.Fatal(createFileError)
 	}
 	var writer report.Writer
 	var templateError error
-	if writer, templateError = report.NewTemplateWriter(f, templateFile); templateError != nil {
+	if writer, templateError = report.NewTemplateWriter(outputFile, templateFile); templateError != nil {
 		log.Fatal(xerrors.Errorf("failed to initialize template writer: %w", templateError))
 	}
 	if writeError := writer.Write(*jsonReport); writeError != nil {
 		log.Fatal(xerrors.Errorf("failed to write results: %w", writeError))
 	}
 }
-func getReportFromJson(scanType string, jsonFileName string) (error, *types.Report) {
+func getReportFromJson(scanType string, jsonFileName string) (*types.Report, error) {
 	switch scanType {
 	case "k8s":
-		readK8sError, k8sParsedReport := readJson[k8sReport.Report](jsonFileName)
+		k8sParsedReport, readK8sError := readJson[k8sReport.Report](jsonFileName)
 		if readK8sError != nil {
-			return readK8sError, nil
+			return nil, readK8sError
 		}
 		var resultsArr types.Results
 		for _, vuln := range k8sParsedReport.Vulnerabilities {
@@ -87,28 +87,28 @@ func getReportFromJson(scanType string, jsonFileName string) (error, *types.Repo
 		rep := types.Report{
 			Results: resultsArr,
 		}
-		return nil, &rep
+		return &rep, nil
 	default:
-		readCommonError, commonReport := readJson[types.Report](jsonFileName)
+		commonReport, readCommonError := readJson[types.Report](jsonFileName)
 		if readCommonError != nil {
-			return readCommonError, nil
+			return nil, readCommonError
 		}
-		return nil, commonReport
+		return commonReport, nil
 	}
 }
-func createFile(fileName string) (err error, outputFile io.Writer) {
+func createFile(fileName string) (outputFile io.Writer, err error) {
 	outputFile, err = os.Create(fileName)
 	if err != nil {
-		return xerrors.Errorf("failed to create file %w", err), nil
+		return nil, xerrors.Errorf("failed to create file %w", err)
 	}
-	return nil, outputFile
+	return outputFile, nil
 }
 
-func readJson[T any](fileName string) (error, *T) {
+func readJson[T any](fileName string) (*T, error) {
 	file, err := os.Open(fileName)
 	if err != nil {
 		fmt.Println(err)
-		return err, *new(*T)
+		return *new(*T), err
 	}
 	defer func(file *os.File) {
 		err := file.Close()
@@ -122,7 +122,7 @@ func readJson[T any](fileName string) (error, *T) {
 	err = decoder.Decode(&out)
 	if err != nil {
 		fmt.Println(err)
-		return err, *new(*T)
+		return *new(*T), err
 	}
-	return nil, &out
+	return &out, nil
 }
