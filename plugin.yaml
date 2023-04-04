@@ -1,0 +1,11 @@
+name: "csv-report"
+repository: github.com/afdesk/csv-report
+version: "0.0.1"
+usage: scan targets into a csv file
+description: |-
+  A Trivy plugin that scans and outputs the results to a csv file.
+  trivy csv-report command target filename
+platforms:
+  -
+    uri: https://github.com/afdesk/csv-report/releases/download/v0.0.1/csv-report.tar.gz
+    bin: ./csv-report
