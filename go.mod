@@ -1,10 +1,10 @@
 module github.com/afdesk/csv-report
 
-go 1.20
+go 1.19
 
 require (
 	github.com/aquasecurity/trivy v0.38.3
-	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2
+	github.com/aquasecurity/trivy-db v0.0.0-20230116084806-4bcdf1c414d0
 )
 
 require (
@@ -16,7 +16,6 @@ require (
 	github.com/aquasecurity/go-dep-parser v0.0.0-20230309121549-fcc0deb06781 // indirect
 	github.com/aquasecurity/table v1.8.0 // indirect
 	github.com/aquasecurity/tml v0.6.1 // indirect
-	github.com/aquasecurity/trivy-db v0.0.0-20230116084806-4bcdf1c414d0 // indirect
 	github.com/aquasecurity/trivy-kubernetes v0.4.1-0.20230312114119-8bf469e48cf1 // indirect
 	github.com/caarlos0/env/v6 v6.10.1 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
@@ -90,6 +89,7 @@ require (
 	golang.org/x/term v0.6.0 // indirect
 	golang.org/x/text v0.8.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
+	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
