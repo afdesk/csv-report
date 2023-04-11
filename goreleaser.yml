@@ -1,6 +1,7 @@
 project_name: csv-report
 builds:
   -
+    id: csv-report-linux
     main: main.go
     binary: csv-report
     ldflags:
@@ -10,18 +11,47 @@ builds:
     env:
       - CGO_ENABLED=0
     goos:
+      - darwin
       - linux
+      - freebsd
+      - windows
     goarch:
       - amd64
+      - 386
+      - arm
+      - arm64
+      - s390x
+      - ppc64le
+    goarm:
+      - 7
+
+    ignore:
+      - goos: darwin
+        goarch: 386
+      - goos: freebsd
+        goarch: arm
+      - goos: freebsd
+        goarch: arm64
+      - goos: windows
+        goarch: 386
+      - goos: windows
+        goarch: arm
+      - goos: windows
+        goarch: arm64
+      - goos: windows
+        goarch: s390x
+      - goos: windows
+        goarch: ppc64le
 
 archives:
   -
     format: tar.gz
     name_template: "{{.ProjectName}}_{{.Version}}_{{.Os}}-{{.Arch}}"
-    replacements:
-      linux: Linux
     files:
       - README.md
       - LICENSE
       - ./*.tpl
       - plugin.yaml
+    format_overrides:
+      - goos: windows
+        format: zip
