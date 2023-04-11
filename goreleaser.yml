@@ -1,7 +1,6 @@
 project_name: csv-report
 builds:
   -
-    id: csv-report-linux
     main: main.go
     binary: csv-report
     ldflags:
