@@ -2,13 +2,14 @@ package main
 
 import (
 	"encoding/json"
-	"golang.org/x/exp/slices"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"golang.org/x/exp/slices"
 
 	dbTypes "github.com/aquasecurity/trivy-db/pkg/types"
 	k8sReport "github.com/aquasecurity/trivy/pkg/k8s/report"
