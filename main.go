@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"golang.org/x/exp/slices"
 	"log"
 	"os"
 	"os/exec"
@@ -46,17 +47,19 @@ func init() {
 }
 func main() {
 	trivyCommand := os.Args[1 : len(os.Args)-1]
-	scanType := trivyCommand[0]
 	outputFileName := os.Args[len(os.Args)-1]
 	tempFileName := filepath.Join(os.TempDir(), tempJsonFileName)
 	defer removeFile(tempFileName)
 
 	cmdArgs := append(trivyCommand, "--format", "json", "--output", tempFileName)
-	if err := exec.Command("trivy", cmdArgs...).Run(); err != nil {
+	cmd := exec.Command("trivy", cmdArgs...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
 		log.Fatalf("failed to build report: %v", err)
 	}
 
-	jsonReport, err := getReportFromJson(scanType, tempFileName)
+	jsonReport, err := getReportFromJson(tempFileName)
 	if err != nil {
 		log.Fatalf("failed to extract jsonReport from json: %v", err)
 	}
@@ -76,8 +79,8 @@ func main() {
 	}
 }
 
-func getReportFromJson(scanType string, jsonFileName string) (*types.Report, error) {
-	if scanType != "k8s" {
+func getReportFromJson(jsonFileName string) (*types.Report, error) {
+	if !isK8s() {
 		return readJson[types.Report](jsonFileName)
 	}
 
@@ -131,4 +134,11 @@ func closeFile(file *os.File) {
 	if err := file.Close(); err != nil {
 		log.Fatalf("failed to remove file %v", err)
 	}
+}
+
+func isK8s() bool {
+	if slices.Contains(os.Args, "kubernetes") || slices.Contains(os.Args, "k8s") {
+		return true
+	}
+	return false
 }
