@@ -1,6 +1,6 @@
 name: "csv-report"
 repository: github.com/afdesk/csv-report
-version: "0.0.1"
+version: "0.0.2"
 usage: scan targets into a csv file
 description: |-
   A Trivy plugin that scans and outputs the results to a csv file.
@@ -9,58 +9,58 @@ platforms:
   - selector:
       os: linux
       arch: amd64
-    uri: https://github.com/afdesk/csv-report/releases/download/v0.0.1/csv-report_0.0.1_linux-amd64.tar.gz
+    uri: https://github.com/afdesk/csv-report/releases/download/v0.0.2/csv-report_0.0.2_linux-amd64.tar.gz
     bin: ./csv-report
   - selector:
       os: linux
       arch: arm
-    uri: https://github.com/afdesk/csv-report/releases/download/v0.0.1/csv-report_0.0.1_linux-arm.tar.gz
+    uri: https://github.com/afdesk/csv-report/releases/download/v0.0.2/csv-report_0.0.2_linux-arm.tar.gz
     bin: ./csv-report
   - selector:
       os: linux
       arch: arm64
-    uri: https://github.com/afdesk/csv-report/releases/download/v0.0.1/csv-report_0.0.1_linux-arm64.tar.gz
+    uri: https://github.com/afdesk/csv-report/releases/download/v0.0.2/csv-report_0.0.2_linux-arm64.tar.gz
     bin: ./csv-report
   - selector:
       os: linux
       arch: s390x
-    uri: https://github.com/afdesk/csv-report/releases/download/v0.0.1/csv-report_0.0.1_linux-s390x.tar.gz
+    uri: https://github.com/afdesk/csv-report/releases/download/v0.0.2/csv-report_0.0.2_linux-s390x.tar.gz
     bin: ./csv-report
   - selector:
       os: linux
       arch: ppc64le
-    uri: https://github.com/afdesk/csv-report/releases/download/v0.0.1/csv-report_0.0.1_linux-ppc64le.tar.gz
+    uri: https://github.com/afdesk/csv-report/releases/download/v0.0.2/csv-report_0.0.2_linux-ppc64le.tar.gz
     bin: ./csv-report
   - selector:
       os: linux
       arch: 386
-    uri: https://github.com/afdesk/csv-report/releases/download/v0.0.1/csv-report_0.0.1_linux-386.tar.gz
+    uri: https://github.com/afdesk/csv-report/releases/download/v0.0.2/csv-report_0.0.2_linux-386.tar.gz
     bin: ./csv-report
 
   - selector:
       os: darwin
       arch: amd64
-    uri: https://github.com/afdesk/csv-report/releases/download/v0.0.1/csv-report_0.0.1_darwin-amd64.tar.gz
+    uri: https://github.com/afdesk/csv-report/releases/download/v0.0.2/csv-report_0.0.2_darwin-amd64.tar.gz
     bin: ./csv-report
   - selector:
       os: darwin
       arch: arm64
-    uri: https://github.com/afdesk/csv-report/releases/download/v0.0.1/csv-report_0.0.1_darwin-arm64.tar.gz
+    uri: https://github.com/afdesk/csv-report/releases/download/v0.0.2/csv-report_0.0.2_darwin-arm64.tar.gz
     bin: ./csv-report
 
   - selector:
       os: freebsd
       arch: 386
-    uri: https://github.com/afdesk/csv-report/releases/download/v0.0.1/csv-report_0.0.1_freebsd-386.tar.gz
+    uri: https://github.com/afdesk/csv-report/releases/download/v0.0.2/csv-report_0.0.2_freebsd-386.tar.gz
     bin: ./csv-report
   - selector:
       os: freebsd
       arch: amd64
-    uri: https://github.com/afdesk/csv-report/releases/download/v0.0.1/csv-report_0.0.1_freebsd-amd64.tar.gz
+    uri: https://github.com/afdesk/csv-report/releases/download/v0.0.2/csv-report_0.0.2_freebsd-amd64.tar.gz
     bin: ./csv-report
 
   - selector:
       os: windows
       arch: amd64
-    uri: https://github.com/afdesk/csv-report/releases/download/v0.0.1/csv-report_0.0.1_windows-amd64.zip
+    uri: https://github.com/afdesk/csv-report/releases/download/v0.0.2/csv-report_0.0.2_windows-amd64.zip
     bin: ./csv-report
