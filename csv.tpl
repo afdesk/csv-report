@@ -1,4 +1,5 @@
 "Target","Vulnerability Class","Target Type","Vulnerability ID","Severity","PackageName","Installed Version","Fixed Version","Title","Description","Resolution","Reference","Additional Reference","CVSS V3 Score","CVSS V3 Vector"
+{{ printf getAvailableFields }}
 {{ range . }}
 {{- $target := .Target }}
 {{- $class := .Class }}

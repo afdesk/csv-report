@@ -2,10 +2,12 @@ package main
 
 import (
 	"encoding/json"
+	"io"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -18,11 +20,18 @@ import (
 )
 
 var (
-	tempJsonFileName = "csv-report-temp.json"
-	templateFileName = "csv.tpl"
+	tempJsonFileName     = "csv-report-temp.json"
+	tempTemplateFileName = "csv-report-template-temp.tpl"
+	templateFileName     = "csv.tpl"
+	availableFields      = []string{"Target", "Vulnerability Class", "Target Type", "Vulnerability ID", "Severity", "PackageName", "Installed Version", "Fixed Version", "Title", "Description", "Resolution", "Reference", "Additional Reference", "CVSS V3 Score", "CVSS V3 Vector"}
+	availableFlags       = []string{"--csv-result", "--delimiter"}
+	delimiter            = ","
 )
 
 func init() {
+	if delimiter = getFlagValue("--delimiter"); delimiter == "" {
+		delimiter = ","
+	}
 	var CustomTemplateFuncMap = map[string]interface{}{
 		"escapeCsv": func(input string) string {
 			quoted := strconv.Quote(input)
@@ -43,13 +52,21 @@ func init() {
 		"rhV3Vector": func(input dbTypes.VendorCVSS) string {
 			return input["redhat"].V3Vector
 		},
+		"getAvailableFields": func() string {
+			return strings.Join(availableFields, delimiter)
+		},
 	}
 	report.CustomTemplateFuncMap = CustomTemplateFuncMap
 }
+
 func main() {
-	trivyCommand := os.Args[1 : len(os.Args)-1]
-	outputFileName := os.Args[len(os.Args)-1]
-	tempFileName := filepath.Join(os.TempDir(), tempJsonFileName)
+	trivyCommand := excludePluginFlags(os.Args, availableFlags)[1:]
+	outputFileName := getFlagValue("--csv-result")
+	if outputFileName == "" {
+		log.Println("--csv-result flag is not defined. Set default value result.csv")
+		outputFileName = "result.csv"
+	}
+	tempFileName := getTempFile(tempJsonFileName)
 	defer removeFile(tempFileName)
 
 	cmdArgs := append(trivyCommand, "--format", "json", "--output", tempFileName)
@@ -71,7 +88,14 @@ func main() {
 	}
 	defer closeFile(outputFile)
 
-	writer, err := report.NewTemplateWriter(outputFile, getPathToTemplate())
+	templatePath, err := getPathToTemplate()
+	if err != nil {
+		log.Fatalf("failed to get template path: %v", err)
+	}
+	if delimiter != "," {
+		defer removeFile(templatePath)
+	}
+	writer, err := report.NewTemplateWriter(outputFile, "@"+templatePath)
 	if err != nil {
 		log.Fatalf("failed to initialize template writer: %v", err)
 	}
@@ -118,12 +142,52 @@ func readJson[T any](jsonFileName string) (*T, error) {
 	return &out, nil
 }
 
-func getPathToTemplate() string {
-	ex, err := os.Executable()
-	if err != nil {
-		panic(err)
+func getPathToTemplate() (string, error) {
+	if delimiter == "," {
+		ex, err := os.Executable()
+		if err != nil {
+			panic(err)
+		}
+		return filepath.Join(filepath.Dir(ex), templateFileName), nil
 	}
-	return "@" + filepath.Join(filepath.Dir(ex), templateFileName)
+	tempTemplate, err := getChangedDelimiterTemplate()
+	if err != nil {
+		return "", nil
+	}
+	return tempTemplate, nil
+}
+
+func getChangedDelimiterTemplate() (string, error) {
+	tempTemplate := getTempFile(tempTemplateFileName)
+	from, err := os.Open(templateFileName)
+	if err != nil {
+		return "", err
+	}
+	defer closeFile(from)
+
+	to, err := os.OpenFile(tempTemplate, os.O_RDWR|os.O_CREATE, 0600)
+	if err != nil {
+		return "", err
+	}
+	defer closeFile(to)
+
+	_, err = io.Copy(to, from)
+	if err != nil {
+		return "", err
+	}
+	tempData, err := os.ReadFile(tempTemplate)
+	if err != nil {
+		return "", err
+	}
+	tempDataReplaced := regexp.MustCompile(`(,)`).ReplaceAllString(string(tempData), delimiter)
+	if err = os.WriteFile(tempTemplate, []byte(tempDataReplaced), 0600); err != nil {
+		return "", err
+	}
+	return tempTemplate, nil
+}
+
+func getTempFile(fileName string) string {
+	return filepath.Join(os.TempDir(), fileName)
 }
 
 func removeFile(file string) {
@@ -142,4 +206,29 @@ func isK8s() bool {
 		return true
 	}
 	return false
+}
+
+func getFlagValue(flag string) string {
+	flagIndex := slices.Index(os.Args, flag)
+	if flagIndex != -1 && (len(os.Args)-1) > flagIndex { // the flag exists and it is not the last argument
+		return os.Args[flagIndex+1]
+	}
+	return ""
+}
+
+func excludePluginFlags(args []string, exclude []string) []string {
+	result := make([]string, 0, len(args))
+	var excludeIndices []int
+	for i := 0; i < len(args); i++ {
+		flagIndex := slices.Index(exclude, args[i])
+		if flagIndex != -1 && len(args)-1 > flagIndex {
+			excludeIndices = append(excludeIndices, i, i+1) // exclude flag and value
+		}
+	}
+	for i, arg := range args {
+		if slices.Index(excludeIndices, i) == -1 {
+			result = append(result, arg)
+		}
+	}
+	return result
 }
