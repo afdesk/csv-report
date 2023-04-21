@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -24,7 +25,7 @@ var (
 	tempTemplateFileName = "csv-report-template-temp.tpl"
 	templateFileName     = "csv.tpl"
 	availableFields      = []string{"Target", "Vulnerability Class", "Target Type", "Vulnerability ID", "Severity", "PackageName", "Installed Version", "Fixed Version", "Title", "Description", "Resolution", "Reference", "Additional Reference", "CVSS V3 Score", "CVSS V3 Vector"}
-	availableFlags       = []string{"--csv-result", "--delimiter"}
+	availableFlags       = []string{"--csv-result", "--delimiter", "--include", "--exclude"}
 	delimiter            = ","
 )
 
@@ -32,6 +33,7 @@ func init() {
 	if delimiter = getFlagValue("--delimiter"); delimiter == "" {
 		delimiter = ","
 	}
+	initializeAvailableFields()
 	var CustomTemplateFuncMap = map[string]interface{}{
 		"escapeCsv": func(input string) string {
 			quoted := strconv.Quote(input)
@@ -53,7 +55,14 @@ func init() {
 			return input["redhat"].V3Vector
 		},
 		"getAvailableFields": func() string {
-			return strings.Join(availableFields, delimiter)
+			wrapped := make([]string, len(availableFields))
+			for i, str := range availableFields {
+				wrapped[i] = "\"" + str + "\""
+			}
+			return strings.Join(wrapped, delimiter)
+		},
+		"isFieldAvailable": func(field string) bool {
+			return slices.Contains(availableFields, field)
 		},
 	}
 	report.CustomTemplateFuncMap = CustomTemplateFuncMap
@@ -99,7 +108,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to initialize template writer: %v", err)
 	}
-	if err := writer.Write(*jsonReport); err != nil {
+	if err = writer.Write(*jsonReport); err != nil {
 		log.Fatalf("failed to write results: %v", err)
 	}
 }
@@ -146,7 +155,7 @@ func getPathToTemplate() (string, error) {
 	if delimiter == "," {
 		ex, err := os.Executable()
 		if err != nil {
-			panic(err)
+			return "", nil
 		}
 		return filepath.Join(filepath.Dir(ex), templateFileName), nil
 	}
@@ -231,4 +240,49 @@ func excludePluginFlags(args []string, exclude []string) []string {
 		}
 	}
 	return result
+}
+
+func initializeAvailableFields() {
+	includeFlagValue := getFlagValue("--include")
+	excludeFlagValue := getFlagValue("--exclude")
+	if includeFlagValue != "" && excludeFlagValue != "" {
+		log.Fatalf("only one flag --include of --exclude allowed")
+	}
+	lowercaseFields := make([]string, len(availableFields))
+	for i, field := range availableFields {
+		lowercaseFields[i] = strings.ToLower(field)
+	}
+	includeFields := strings.Split(includeFlagValue, ",")
+	if includeFlagValue != "" {
+		var includedIndices []int
+		for _, field := range includeFields {
+			if ix := slices.Index(lowercaseFields, strings.ToLower(strings.TrimSpace(field))); ix != -1 {
+				includedIndices = append(includedIndices, ix)
+				continue
+			}
+			log.Fatalf("unresolved field %s", field)
+		}
+		sort.Ints(includedIndices)
+		newSlice := make([]string, len(includedIndices))
+		for i, index := range includedIndices {
+			newSlice[i] = availableFields[index]
+		}
+		availableFields = newSlice
+	}
+	excludeFields := strings.Split(excludeFlagValue, ",")
+	if excludeFlagValue != "" {
+		var excludedIndices []int
+		for _, field := range excludeFields {
+			if ix := slices.Index(lowercaseFields, strings.ToLower(strings.TrimSpace(field))); ix != -1 {
+				excludedIndices = append(excludedIndices, ix)
+				continue
+			}
+			log.Fatalf("unresolved field %s", field)
+		}
+		sort.Ints(excludedIndices)
+		for i, index := range excludedIndices {
+			index -= i
+			availableFields = append(availableFields[:index], availableFields[index+1:]...)
+		}
+	}
 }
