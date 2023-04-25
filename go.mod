@@ -3,6 +3,7 @@ module github.com/afdesk/csv-report
 go 1.19
 
 require (
+	github.com/afdesk/trivy-go-plugin v0.0.0-20230425141703-7d18a52213b0
 	github.com/aquasecurity/trivy v0.38.3
 	github.com/aquasecurity/trivy-db v0.0.0-20230116084806-4bcdf1c414d0
 )
