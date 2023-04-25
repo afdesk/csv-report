@@ -4,13 +4,11 @@ import (
 	"encoding/json"
 	"log"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
 
-	"golang.org/x/exp/slices"
-
+	"github.com/afdesk/trivy-go-plugin/pkg/common"
 	dbTypes "github.com/aquasecurity/trivy-db/pkg/types"
 	k8sReport "github.com/aquasecurity/trivy/pkg/k8s/report"
 	"github.com/aquasecurity/trivy/pkg/report"
@@ -52,12 +50,8 @@ func main() {
 	tempFileName := filepath.Join(os.TempDir(), tempJsonFileName)
 	defer removeFile(tempFileName)
 
-	cmdArgs := append(trivyCommand, "--format", "json", "--output", tempFileName)
-	cmd := exec.Command("trivy", cmdArgs...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		log.Fatalf("failed to build report: %v", err)
+	if err := common.MakeTrivyJsonReport(trivyCommand, tempFileName); err != nil {
+		log.Fatalf("failed to make trivy json report: %v", err)
 	}
 
 	jsonReport, err := getReportFromJson(tempFileName)
@@ -71,7 +65,12 @@ func main() {
 	}
 	defer closeFile(outputFile)
 
-	writer, err := report.NewTemplateWriter(outputFile, getPathToTemplate())
+	templatePath, err := common.GetPathToTemplate(templateFileName)
+	if err != nil {
+		log.Fatalf("failed to get template path: %v", err)
+	}
+
+	writer, err := report.NewTemplateWriter(outputFile, templatePath)
 	if err != nil {
 		log.Fatalf("failed to initialize template writer: %v", err)
 	}
@@ -81,7 +80,7 @@ func main() {
 }
 
 func getReportFromJson(jsonFileName string) (*types.Report, error) {
-	if !isK8s() {
+	if !common.IsK8s() {
 		return readJson[types.Report](jsonFileName)
 	}
 
@@ -118,14 +117,6 @@ func readJson[T any](jsonFileName string) (*T, error) {
 	return &out, nil
 }
 
-func getPathToTemplate() string {
-	ex, err := os.Executable()
-	if err != nil {
-		panic(err)
-	}
-	return "@" + filepath.Join(filepath.Dir(ex), templateFileName)
-}
-
 func removeFile(file string) {
 	if err := os.Remove(file); err != nil {
 		log.Fatalf("failed to remove file %v", err)
@@ -135,11 +126,4 @@ func closeFile(file *os.File) {
 	if err := file.Close(); err != nil {
 		log.Fatalf("failed to remove file %v", err)
 	}
-}
-
-func isK8s() bool {
-	if slices.Contains(os.Args, "kubernetes") || slices.Contains(os.Args, "k8s") {
-		return true
-	}
-	return false
 }

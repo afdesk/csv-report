@@ -12,6 +12,7 @@ require (
 	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/Masterminds/semver/v3 v3.2.0 // indirect
 	github.com/Masterminds/sprig/v3 v3.2.3 // indirect
+	github.com/afdesk/trivy-go-plugin v0.0.0-20230425141703-7d18a52213b0 // indirect
 	github.com/aquasecurity/defsec v0.84.0 // indirect
 	github.com/aquasecurity/go-dep-parser v0.0.0-20230309121549-fcc0deb06781 // indirect
 	github.com/aquasecurity/table v1.8.0 // indirect
