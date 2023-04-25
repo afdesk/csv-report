@@ -2,19 +2,19 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 
 	"golang.org/x/exp/slices"
 
-	dbTypes "github.com/aquasecurity/trivy-db/pkg/types"
 	k8sReport "github.com/aquasecurity/trivy/pkg/k8s/report"
 	"github.com/aquasecurity/trivy/pkg/report"
 	"github.com/aquasecurity/trivy/pkg/types"
@@ -24,46 +24,45 @@ var (
 	tempJsonFileName     = "csv-report-temp.json"
 	tempTemplateFileName = "csv-report-template-temp.tpl"
 	templateFileName     = "csv.tpl"
-	availableFields      = []string{"Target", "Vulnerability Class", "Target Type", "Vulnerability ID", "Severity", "PackageName", "Installed Version", "Fixed Version", "Title", "Description", "Resolution", "Reference", "Additional Reference", "CVSS V3 Score", "CVSS V3 Vector"}
-	availableFlags       = []string{"--csv-result", "--delimiter", "--include", "--exclude"}
-	delimiter            = ","
+	availableFieldsNames = []string{
+		"Target",
+		"Vulnerability Class",
+		"Target Type",
+		"Vulnerability ID",
+		"Severity",
+		"PackageName",
+		"Installed Version",
+		"Fixed Version",
+		"Title",
+		"Description",
+		"Resolution",
+		"Reference",
+		"Additional Reference",
+		"CVSS V3 Score",
+		"CVSS V3 Vector",
+	}
+	availableFieldsMap = map[string]bool{}
+	availableFlags     = []string{"--csv-result", "--csv-delimiter", "--csv-include", "--csv-exclude"}
+	delimiter          = ","
 )
 
 func init() {
-	if delimiter = getFlagValue("--delimiter"); delimiter == "" {
+	if delimiter = getFlagValue("--csv-delimiter"); delimiter == "" {
 		delimiter = ","
 	}
 	initializeAvailableFields()
+	availableFieldKeys := make([]string, 0, len(availableFieldsNames))
+	for _, field := range availableFieldsNames {
+		if availableFieldsMap[strings.ToLower(field)] {
+			availableFieldKeys = append(availableFieldKeys, "\""+field+"\"")
+		}
+	}
 	var CustomTemplateFuncMap = map[string]interface{}{
-		"escapeCsv": func(input string) string {
-			quoted := strconv.Quote(input)
-			return strings.ReplaceAll(quoted, "\\\"", "\"\"")
-		},
-		"escapeString": func(input string) dbTypes.SourceID {
-			return dbTypes.SourceID(input)
-		},
-		"nvdV3Score": func(input dbTypes.VendorCVSS) float64 {
-			return input["nvd"].V3Score
-		},
-		"rhV3Score": func(input dbTypes.VendorCVSS) float64 {
-			return input["redhat"].V3Score
-		},
-		"nvdV3Vector": func(input dbTypes.VendorCVSS) string {
-			return input["nvd"].V3Vector
-		},
-		"rhV3Vector": func(input dbTypes.VendorCVSS) string {
-			return input["redhat"].V3Vector
-		},
 		"getAvailableFields": func() string {
-			wrapped := make([]string, len(availableFields))
-			for i, str := range availableFields {
-				wrapped[i] = "\"" + str + "\""
-			}
-			return strings.Join(wrapped, delimiter)
+			return strings.Join(availableFieldKeys, ",")
 		},
-		"isFieldAvailable": func(field string) bool {
-			return slices.Contains(availableFields, field)
-		},
+		"getVulnerabilitiesTable":  getVulnerabilitiesTable,
+		"getMisconfigurationTable": getMisconfigurationTable,
 	}
 	report.CustomTemplateFuncMap = CustomTemplateFuncMap
 }
@@ -243,46 +242,160 @@ func excludePluginFlags(args []string, exclude []string) []string {
 }
 
 func initializeAvailableFields() {
-	includeFlagValue := getFlagValue("--include")
-	excludeFlagValue := getFlagValue("--exclude")
+	includeFlagValue := getFlagValue("--csv-include")
+	excludeFlagValue := getFlagValue("--csv-exclude")
 	if includeFlagValue != "" && excludeFlagValue != "" {
-		log.Fatalf("only one flag --include of --exclude allowed")
+		log.Fatalf("only one flag --csv-include of --csv-exclude allowed")
 	}
-	lowercaseFields := make([]string, len(availableFields))
-	for i, field := range availableFields {
-		lowercaseFields[i] = strings.ToLower(field)
+	for _, name := range availableFieldsNames {
+		availableFieldsMap[strings.ToLower(name)] = true
 	}
-	includeFields := strings.Split(includeFlagValue, ",")
+
 	if includeFlagValue != "" {
-		var includedIndices []int
+		includeFields := strings.Split(includeFlagValue, ",")
+		for _, name := range availableFieldsNames {
+			availableFieldsMap[strings.ToLower(name)] = false
+		}
 		for _, field := range includeFields {
-			if ix := slices.Index(lowercaseFields, strings.ToLower(strings.TrimSpace(field))); ix != -1 {
-				includedIndices = append(includedIndices, ix)
+			if _, ok := availableFieldsMap[strings.ToLower(strings.TrimSpace(field))]; ok {
+				availableFieldsMap[strings.ToLower(strings.TrimSpace(field))] = true
 				continue
 			}
 			log.Fatalf("unresolved field %s", field)
 		}
-		sort.Ints(includedIndices)
-		newSlice := make([]string, len(includedIndices))
-		for i, index := range includedIndices {
-			newSlice[i] = availableFields[index]
-		}
-		availableFields = newSlice
 	}
-	excludeFields := strings.Split(excludeFlagValue, ",")
+
 	if excludeFlagValue != "" {
-		var excludedIndices []int
+		excludeFields := strings.Split(excludeFlagValue, ",")
+
 		for _, field := range excludeFields {
-			if ix := slices.Index(lowercaseFields, strings.ToLower(strings.TrimSpace(field))); ix != -1 {
-				excludedIndices = append(excludedIndices, ix)
+			if _, ok := availableFieldsMap[strings.ToLower(strings.TrimSpace(field))]; ok {
+				availableFieldsMap[strings.ToLower(strings.TrimSpace(field))] = false
 				continue
 			}
 			log.Fatalf("unresolved field %s", field)
 		}
-		sort.Ints(excludedIndices)
-		for i, index := range excludedIndices {
-			index -= i
-			availableFields = append(availableFields[:index], availableFields[index+1:]...)
+	}
+}
+
+func escapeCsv(input string) string {
+	quoted := strconv.Quote(input)
+	return strings.ReplaceAll(quoted, "\\\"", "\"\"")
+}
+
+func getVulnerabilitiesTable(result types.Result) string {
+	var resultString strings.Builder
+	if len(result.Vulnerabilities) == 0 {
+		return ""
+	}
+	for _, vulnerability := range result.Vulnerabilities {
+		writeCommonFields(result, &resultString, vulnerability)
+		if availableFieldsMap["additional reference"] {
+			refIndex := slices.IndexFunc(vulnerability.References, func(ref string) bool { return strings.Contains(ref, "nvd.nist.gov") })
+			if refIndex != -1 {
+				resultString.WriteString(vulnerability.References[refIndex] + delimiter)
+			} else {
+				resultString.WriteString("" + delimiter)
+			}
 		}
+
+		cvssNvd := vulnerability.CVSS["nvd"]
+		cvssRh := vulnerability.CVSS["redhat"]
+		if availableFieldsMap["cvss v3 score"] {
+			fieldValue := ""
+			if cvssNvd.V3Score != 0 {
+				fieldValue = strconv.FormatFloat(cvssNvd.V3Score, 'f', -1, 64)
+			} else if cvssRh.V3Score != 0 {
+				fieldValue = strconv.FormatFloat(cvssRh.V3Score, 'f', -1, 64)
+			}
+			resultString.WriteString(fieldValue + delimiter)
+		}
+		if availableFieldsMap["cvss v3 vector"] {
+			fieldValue := ""
+			if cvssRh.V3Vector != "" {
+				fieldValue = cvssNvd.V3Vector
+			} else if cvssNvd.V3Vector != "" {
+				fieldValue = cvssNvd.V3Vector
+			}
+			resultString.WriteString(fieldValue + delimiter)
+		}
+		resultString.WriteString("\n")
+	}
+	return resultString.String()
+}
+
+func getMisconfigurationTable(result types.Result) string {
+	var resultString strings.Builder
+	if len(result.Misconfigurations) == 0 {
+		return ""
+	}
+	for _, misc := range result.Misconfigurations {
+		writeCommonFields(result, &resultString, misc)
+		if availableFieldsMap["additional reference"] {
+			refIndex := slices.IndexFunc(misc.References, func(ref string) bool { return strings.Contains(ref, "docs.docker.com") })
+			if refIndex != -1 {
+				resultString.WriteString(misc.References[refIndex] + delimiter)
+			} else {
+				resultString.WriteString("" + delimiter)
+			}
+		}
+		resultString.WriteString("\n")
+	}
+	return resultString.String()
+}
+
+func getFieldValue[T types.DetectedMisconfiguration | types.DetectedVulnerability](dm T, fieldName string) string {
+	r := reflect.ValueOf(dm)
+	f := reflect.Indirect(r).FieldByName(fieldName)
+	if f.IsValid() {
+		return fmt.Sprintf("%v", f.Interface())
+	}
+	return ""
+}
+
+func writeCommonFields[T types.DetectedMisconfiguration | types.DetectedVulnerability](result types.Result, resultString *strings.Builder, vulnerability T) {
+	if availableFieldsMap["target"] {
+		resultString.WriteString(escapeCsv(result.Target) + delimiter)
+	}
+	if availableFieldsMap["vulnerability class"] {
+		resultString.WriteString(escapeCsv(string(result.Class)) + delimiter)
+	}
+	if availableFieldsMap["target type"] {
+		resultString.WriteString(escapeCsv(result.Target) + delimiter)
+	}
+	if availableFieldsMap["vulnerability id"] {
+		id := getFieldValue(vulnerability, "VulnerabilityID")
+		if id == "" {
+			id = getFieldValue(vulnerability, "ID")
+		}
+		resultString.WriteString(escapeCsv(id) + delimiter)
+	}
+	if availableFieldsMap["severity"] {
+		resultString.WriteString(escapeCsv(getFieldValue(vulnerability, "Severity")) + delimiter)
+	}
+	if availableFieldsMap["packagename"] {
+		resultString.WriteString(escapeCsv(getFieldValue(vulnerability, "PkgName")) + delimiter)
+	}
+	if availableFieldsMap["installed version"] {
+		resultString.WriteString(escapeCsv(getFieldValue(vulnerability, "InstalledVersion")) + delimiter)
+	}
+	if availableFieldsMap["fixed version"] {
+		resultString.WriteString(escapeCsv(getFieldValue(vulnerability, "FixedVersion")) + delimiter)
+	}
+	if availableFieldsMap["title"] {
+		resultString.WriteString(escapeCsv(getFieldValue(vulnerability, "Title")) + delimiter)
+	}
+	if availableFieldsMap["description"] {
+		resultString.WriteString(escapeCsv(getFieldValue(vulnerability, "Description")) + delimiter)
+	}
+	if availableFieldsMap["resolution"] {
+		resulution := "No resolution provided."
+		if getFieldValue(vulnerability, "FixedVersion") != "" {
+			resulution = fmt.Sprintf("Update %s to version %s or higher.", getFieldValue(vulnerability, "PkgName"), getFieldValue(vulnerability, "FixedVersion"))
+		}
+		resultString.WriteString(resulution + delimiter)
+	}
+	if availableFieldsMap["reference"] {
+		resultString.WriteString(getFieldValue(vulnerability, "PrimaryURL") + delimiter)
 	}
 }
