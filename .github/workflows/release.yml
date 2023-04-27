@@ -1,0 +1,15 @@
+name: Release
+
+on:
+    push:
+        branches:
+            - main
+        paths:
+            - 'plugin.yaml'
+
+permissions:
+    contents: write
+
+jobs:
+    build:
+        uses: afdesk/trivy-go-plugin/.github/workflows/simple-release.yaml@main
